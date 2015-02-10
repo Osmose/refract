@@ -1,10 +1,13 @@
 {
-  "name": "Test",
+  "name": "{{ name }}",
   "description": "Test",
-  "launch_path": "/app.html?url={{ app_url }}",
+  "launch_path": "/launch?url={{ app_url }}",
   "icons": {
-    "512": "{{ icon_512_url }}",
-    "256": "{{ icon_256_url }}",
-    "128": "{{ icon_128_url }}"
+    {% for icon_size, icon_url in icons.items() -%}
+    "{{ icon_size }}": "{{ icon_url }}"{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  },
+  "developer": {
+    "name": "Refract"
   }
 }
