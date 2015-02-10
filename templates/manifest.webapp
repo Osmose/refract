@@ -1,0 +1,10 @@
+{
+  "name": "Test",
+  "description": "Test",
+  "launch_path": "/app.html?url={{ app_url }}",
+  "icons": {
+    "512": "{{ icon_512_url }}",
+    "256": "{{ icon_256_url }}",
+    "128": "{{ icon_128_url }}"
+  }
+}
