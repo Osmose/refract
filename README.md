@@ -2,6 +2,8 @@
 
 Refract is a small web service that takes a URL and generates an [Open Web App](https://developer.mozilla.org/en-US/Apps) that redirects immediately to the given URL. In other words, this lets you install websites as applications, similar to the now-defunct [Prism add-on](http://en.wikipedia.org/wiki/Mozilla_Prism).
 
+You can find a live instance at http://refract.mkelly.me.
+
 After I found myself manually creating apps for some of my favorite websites, I figured it was worth automating and sharing.
 
 ## Developer Setup
