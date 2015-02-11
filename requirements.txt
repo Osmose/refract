@@ -1,4 +1,6 @@
+# Pin requirements? AIN'T NOBODY GOT TIME FOR THAT
 Flask
+Flask-Script
 requests
 BeautifulSoup4
 Pillow

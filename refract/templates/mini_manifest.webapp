@@ -1,0 +1,8 @@
+{
+  "name": "{{ name }}",
+  "description": "Test",
+  "package_path": "{{ package_path }}",
+  "developer": {
+    "name": "Refract"
+  }
+}
