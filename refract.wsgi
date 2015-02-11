@@ -10,7 +10,7 @@ def path(*paths):
     return os.path.join(BASE_DIR, *paths)
 
 
-os.environ['REFRACT_CONFIG'] = path('settings.py')
+os.environ['REFRACT_SETTINGS'] = path('settings.py')
 # http://code.google.com/p/modwsgi/wiki/ApplicationIssues#User_HOME_Environment_Variable
 os.environ['HOME'] = pwd.getpwuid(os.getuid()).pw_dir
 
