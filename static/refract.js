@@ -4,7 +4,7 @@
 
         var url = $('#app-url').val();
         var manifestUrl = location.origin + '/manifest.webapp?url=' + encodeURIComponent(url);
-        var request = window.navigator.mozApps.install(manifestUrl);
+        var request = window.navigator.mozApps.installPackage(manifestUrl);
         request.onerror = function () {
             console.log('Install failed, error: ' + this.error.name);
             console.log(manifestUrl);

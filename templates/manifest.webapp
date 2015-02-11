@@ -1,7 +1,7 @@
 {
   "name": "{{ name }}",
   "description": "Test",
-  "launch_path": "/launch?url={{ app_url }}",
+  "launch_path": "/refract.html",
   "icons": {
     {% for icon_size, icon_url in icons.items() -%}
     "{{ icon_size }}": "{{ icon_url }}"{% if not loop.last %},{% endif %}
