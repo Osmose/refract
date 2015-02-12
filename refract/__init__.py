@@ -1,8 +1,8 @@
 import hashlib
 import io
+import json
 import os
 from StringIO import StringIO
-from urllib import urlopen
 from zipfile import ZipFile
 
 import requests
@@ -95,10 +95,10 @@ class Webapp(object):
 
     def name(self):
         if not self._name:
-            self._name = self.guess_name()
+            self._name = self.fetch_name().strip()
         return self._name
 
-    def guess_name(self):
+    def fetch_name(self):
         """Fetch an appropriate name for this app."""
         soup = self.soup()
 
@@ -122,11 +122,28 @@ class Webapp(object):
         """
         package_path = url_for('webapp_zip', url=self.url, name=self.name(),
                                icon_url=self.icon_url)
-        return render_template('mini_manifest.webapp', name=self.name(), package_path=package_path)
+        return json.dumps({
+            'name': self.name(),
+            'description': 'A refracted web app.',
+            'package_path': package_path,
+            'developer': {
+                'name': 'Refract'
+            }
+        })
 
     def manifest(self):
         """Generate the manifest for this app."""
-        return render_template('manifest.webapp', name=self.name(), icons={512: 'icon_512.png'})
+        return json.dumps({
+            'name': self.name(),
+            'description': 'A refracted web app.',
+            'launch_path': '/refract.html',
+            'icons': {
+                512: 'icon_512.png'
+            },
+            'developer': {
+                'name': 'Refract'
+            }
+        })
 
     def refract_html(self):
         """
