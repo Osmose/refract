@@ -36,6 +36,30 @@
             </span>
           </div>
         </div>
+
+        <div id="toggle-extras">
+          <button class="btn btn-default" type="button">Customize App</button>
+        </div>
+
+        <div id="extras">
+          <h2>Customization</h2>
+          <p>Refract will attempt to auto-fill any blank customization fields by pulling info from the webpage itself.</p>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="app-name">App Name</label>
+                <input type="text" class="form-control" id="app-name" placeholder="My Refracted App" autocomplete="off">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="app-icon">App Icon</label>
+                <input type="file" id="app-icon" autocomplete="off">
+                <span class="help-block">512x512 PNG preferred. Other sizes will be scaled to 512x512 pixels.</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </form>
 
       <footer class="footer">

@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 from StringIO import StringIO
+from urllib import urlopen
 from zipfile import ZipFile
 
 import requests
@@ -30,21 +31,28 @@ def index():
 @app.route('/manifest.webapp')
 def manifest():
     url = request.args.get('url')
-    webapp = Webapp(url)
+    name = request.args.get('name')
+    icon_data_url = request.args.get('icon_data_url');
+    webapp = Webapp(url, name=name, icon_data_url=icon_data_url)
     return webapp.mini_manifest(), 200, {'Content-Type': 'application/x-web-app-manifest+json'}
 
 
 @app.route('/webapp.zip')
 def webapp_zip():
     url = request.args.get('url')
-    webapp = Webapp(url)
+    name = request.args.get('name')
+    icon_data_url = request.args.get('icon_data_url')
+    webapp = Webapp(url, name=name, icon_data_url=icon_data_url)
     return webapp.zipfile(), 200, {'Content-Type': 'application/zip'}
 
 
 class Webapp(object):
-    def __init__(self, url):
+    def __init__(self, url, name=None, icon_data_url=None):
         self.url = url
         self.id = hashlib.sha1(url).hexdigest()
+        self._name = name
+        self._icon = None
+        self.icon_data_url = icon_data_url
 
         self._soup = None
 
@@ -59,6 +67,14 @@ class Webapp(object):
         return self._soup
 
     def icon(self):
+        if not self._icon:
+            if self.icon_data_url:
+                self._icon = resize_square(load_data_url_image(self.icon_data_url), 512)
+            else:
+                self._icon = self.fetch_icon()
+        return self._icon
+
+    def fetch_icon(self):
         """
         Generate a PIL image with an appropriate 512x512 icon for this
         app.
@@ -73,14 +89,17 @@ class Webapp(object):
                     continue
 
                 image = Image.open(StringIO(response.content))
-                width, height = image.size
-
-                return image.resize((512, 512), Image.BILINEAR)
+                return resize_square(image, 512)
 
         # Fallback to default icon.
         return Image.open(path('static/icon_512.png'))
 
     def name(self):
+        if not self._name:
+            self._name = self.guess_name()
+        return self._name
+
+    def guess_name(self):
         """Fetch an appropriate name for this app."""
         soup = self.soup()
 
@@ -102,8 +121,9 @@ class Webapp(object):
         Generate the mini-manifest for this app that points to the
         zipfile with the full packaged app.
         """
-        return render_template('mini_manifest.webapp', name=self.name(),
-                               package_path=url_for('webapp_zip', url=self.url))
+        package_path = url_for('webapp_zip', url=self.url, name=self.name(),
+                               icon_data_url=self.icon_data_url)
+        return render_template('mini_manifest.webapp', name=self.name(), package_path=package_path)
 
     def manifest(self):
         """Generate the manifest for this app."""
@@ -136,3 +156,14 @@ class Webapp(object):
         contents = out.read()
         out.close()
         return contents
+
+
+def resize_square(image, size):
+    width, height = image.size
+    if width != size or height != size:
+        return image.resize((size, size), Image.BILINEAR)
+    else:
+        return image
+
+def load_data_url_image(data_url):
+    return Image.open(StringIO(urlopen(data_url).read()))
