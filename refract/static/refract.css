@@ -1,1 +1,6 @@
-/* Nuthin' yet... */
+.footer {
+    border-top: 1px solid #EEE;
+    color: #777;
+    margin-top: 40px;
+    padding-top: 20px;
+}
