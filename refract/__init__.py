@@ -32,8 +32,8 @@ def index():
 def manifest():
     url = request.args.get('url')
     name = request.args.get('name')
-    icon_data_url = request.args.get('icon_data_url');
-    webapp = Webapp(url, name=name, icon_data_url=icon_data_url)
+    icon_url = request.args.get('icon_url');
+    webapp = Webapp(url, name=name, icon_url=icon_url)
     return webapp.mini_manifest(), 200, {'Content-Type': 'application/x-web-app-manifest+json'}
 
 
@@ -41,18 +41,18 @@ def manifest():
 def webapp_zip():
     url = request.args.get('url')
     name = request.args.get('name')
-    icon_data_url = request.args.get('icon_data_url')
-    webapp = Webapp(url, name=name, icon_data_url=icon_data_url)
+    icon_url = request.args.get('icon_url')
+    webapp = Webapp(url, name=name, icon_url=icon_url)
     return webapp.zipfile(), 200, {'Content-Type': 'application/zip'}
 
 
 class Webapp(object):
-    def __init__(self, url, name=None, icon_data_url=None):
+    def __init__(self, url, name=None, icon_url=None):
         self.url = url
         self.id = hashlib.sha1(url).hexdigest()
         self._name = name
         self._icon = None
-        self.icon_data_url = icon_data_url
+        self.icon_url = icon_url
 
         self._soup = None
 
@@ -68,10 +68,7 @@ class Webapp(object):
 
     def icon(self):
         if not self._icon:
-            if self.icon_data_url:
-                self._icon = resize_square(load_data_url_image(self.icon_data_url), 512)
-            else:
-                self._icon = self.fetch_icon()
+            self._icon = resize_square(self.fetch_icon(), 512)
         return self._icon
 
     def fetch_icon(self):
@@ -79,17 +76,19 @@ class Webapp(object):
         Generate a PIL image with an appropriate 512x512 icon for this
         app.
         """
-        soup = self.soup()
+        # Use user-supplied icon if possible.
+        if self.icon_url:
+            image = download_image(self.icon_url)
+            if image:
+                return image
 
-        # First preference is Open Graph Images from the app itself.
+        # Next preference is Open Graph Images from the app itself.
+        soup = self.soup()
         for tag in soup.findAll('meta'):
             if tag.get('property') == 'og:image':
-                response = requests.get(tag['content'])
-                if response.status_code != 200:
-                    continue
-
-                image = Image.open(StringIO(response.content))
-                return resize_square(image, 512)
+                image = download_image(tag['content'])
+                if image:
+                    return image
 
         # Fallback to default icon.
         return Image.open(path('static/icon_512.png'))
@@ -122,7 +121,7 @@ class Webapp(object):
         zipfile with the full packaged app.
         """
         package_path = url_for('webapp_zip', url=self.url, name=self.name(),
-                               icon_data_url=self.icon_data_url)
+                               icon_url=self.icon_url)
         return render_template('mini_manifest.webapp', name=self.name(), package_path=package_path)
 
     def manifest(self):
@@ -165,5 +164,10 @@ def resize_square(image, size):
     else:
         return image
 
-def load_data_url_image(data_url):
-    return Image.open(StringIO(urlopen(data_url).read()))
+
+def download_image(image_url):
+    response = requests.get(image_url)
+    if response.status_code != 200:
+        return None
+
+    return Image.open(StringIO(response.content))
