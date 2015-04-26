@@ -8,7 +8,7 @@ manager = Manager(app)
 
 
 @manager.command
-def run():
+def runserver():
     app.run(debug=True, port=8000)
 
 
