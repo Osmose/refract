@@ -4,3 +4,4 @@ Flask-Script
 requests
 BeautifulSoup4
 Pillow
+crxmake

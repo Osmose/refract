@@ -2,15 +2,18 @@ import hashlib
 import io
 import json
 import logging
-from logging.handlers import SMTPHandler
+import struct
 import os
+from logging.handlers import SMTPHandler
 from StringIO import StringIO
 from textwrap import dedent
 from zipfile import ZipFile
 
 import requests
 from bs4 import BeautifulSoup
+from crxmake import crxmake
 from PIL import Image
+from requests.exceptions import RequestException
 
 from flask import Flask, render_template, request, url_for
 
@@ -18,6 +21,7 @@ from flask import Flask, render_template, request, url_for
 __version__ = '0.1'
 app = Flask(__name__)
 app.config.from_object('refract.default_settings')
+app.config.from_pyfile('settings.py', silent=True)
 app.config.from_envvar('REFRACT_SETTINGS', silent=True)
 
 
@@ -57,20 +61,29 @@ def manifest():
     url = request.args.get('url')
     name = request.args.get('name')
     icon_url = request.args.get('icon_url')
-    webapp = Webapp(url, name=name, icon_url=icon_url)
-    return webapp.mini_manifest(), 200, {'Content-Type': 'application/x-web-app-manifest+json'}
+    app = OpenWebApp(url, name=name, icon_url=icon_url)
+    return app.mini_manifest(), 200, {'Content-Type': 'application/x-web-app-manifest+json'}
 
 
 @app.route('/webapp.zip')
-def webapp_zip():
+def open_web_app_zip():
     url = request.args.get('url')
     name = request.args.get('name')
     icon_url = request.args.get('icon_url')
-    webapp = Webapp(url, name=name, icon_url=icon_url)
-    return webapp.zipfile(), 200, {'Content-Type': 'application/zip'}
+    app = OpenWebApp(url, name=name, icon_url=icon_url)
+    return app.zipfile(), 200, {'Content-Type': 'application/x-chrome-extension'}
 
 
-class Webapp(object):
+@app.route('/chrome_app.crx')
+def chrome_app_crx():
+    url = request.args.get('url')
+    name = request.args.get('name')
+    icon_url = request.args.get('icon_url')
+    app = ChromeApp(url, name=name, icon_url=icon_url)
+    return app.crxfile(), 200, {'Content-Type': 'application/c'}
+
+
+class WebApp(object):
     def __init__(self, url, name=None, icon_url=None):
         self.url = url
         self.id = hashlib.sha1(url).hexdigest()
@@ -85,8 +98,11 @@ class Webapp(object):
         Fetch the index for the webapp and throw it in BeautifulSoup.
         """
         if not self._soup:
-            response = requests.get(self.url)
-            response.raise_for_status()
+            try:
+                response = requests.get(self.url)
+                response.raise_for_status()
+            except RequestException:
+                return None
             self._soup = BeautifulSoup(response.text)
         return self._soup
 
@@ -94,6 +110,13 @@ class Webapp(object):
         if not self._icon:
             self._icon = resize_square(self.fetch_icon(), 512)
         return self._icon
+
+    def icon_bytes(self):
+        icon_bytes = io.BytesIO()
+        self.icon().save(icon_bytes, 'PNG')
+        value = icon_bytes.getvalue()
+        icon_bytes.close()
+        return value
 
     def fetch_icon(self):
         """
@@ -108,11 +131,12 @@ class Webapp(object):
 
         # Next preference is Open Graph Images from the app itself.
         soup = self.soup()
-        for tag in soup.findAll('meta'):
-            if tag.get('property') == 'og:image':
-                image = download_image(tag['content'])
-                if image:
-                    return image
+        if soup:
+            for tag in soup.findAll('meta'):
+                if tag.get('property') == 'og:image':
+                    image = download_image(tag['content'])
+                    if image:
+                        return image
 
         # Fallback to default icon.
         return Image.open(path('static/icon_512.png'))
@@ -139,12 +163,14 @@ class Webapp(object):
         # Nothing? Jeez.
         return 'Refracted Web App'
 
+
+class OpenWebApp(WebApp):
     def mini_manifest(self):
         """
         Generate the mini-manifest for this app that points to the
         zipfile with the full packaged app.
         """
-        package_path = url_for('webapp_zip', url=self.url, name=self.name(),
+        package_path = url_for('open_web_app_zip', url=self.url, name=self.name(),
                                icon_url=self.icon_url)
         return json.dumps({
             'name': self.name(),
@@ -156,11 +182,10 @@ class Webapp(object):
         })
 
     def manifest(self):
-        """Generate the manifest for this app."""
         return json.dumps({
             'name': self.name(),
             'description': 'A refracted web app.',
-            'launch_path': '/refract.html',
+            'launch_path': '/index.html',
             'icons': {
                 512: 'icon_512.png'
             },
@@ -169,33 +194,69 @@ class Webapp(object):
             }
         })
 
-    def refract_html(self):
-        """
-        Generate the main HTML file for this app. It just redirects to
-        the real app.
-        """
-        return render_template('refract.html', webapp_url=self.url)
+    def index_html(self):
+        return render_template('open_web_app/index.html', app_url=self.url)
 
     def zipfile(self):
-        """
-        Generate a string containing the data for a zipfile containing
-        all the files for a packaged app that just redirects to this
-        webapp on load.
-        """
+        return build_zipfile({
+            'manifest.webapp': self.manifest().encode('utf8'),
+            'index.html': self.index_html().encode('utf8'),
+            'icon_512.png': self.icon_bytes(),
+        })
+
+
+class ChromeApp(WebApp):
+    def manifest(self):
+        return json.dumps({
+            'manifest_version': 2,
+            'name': self.name(),
+            'description': 'A refracted web app.',
+            'version': '0.1',
+            'permissions': ['webview'],
+            'app': {
+                'background': {
+                    'scripts': ['background.js']
+                }
+            },
+            'icons': {
+                512: 'icon_512.png'
+            }
+        })
+
+    def background_js(self):
+        return render_template('chrome_app/background.js')
+
+    def index_html(self):
+        return render_template('chrome_app/index.html', app_url=self.url)
+
+    def crxfile(self):
+        zip_data = build_zipfile({
+            'manifest.json': self.manifest().encode('utf8'),
+            'background.js': self.background_js().encode('utf8'),
+            'index.html': self.index_html().encode('utf8'),
+            'icon_512.png': self.icon_bytes(),
+        })
+
+        # Adapted from crxmake, which normally only works on files on
+        # the filesystem.
+        with open(app.config['PRIVATE_KEY']) as f:
+            pem = f.read()
+        with open(app.config['PUBLIC_KEY']) as f:
+            der = f.read()
+
+        sig = crxmake.sign(zip_data, pem)
+        der_len = struct.pack("<I", len(der))
+        sig_len = struct.pack("<I", len(sig))
+
         out = StringIO()
-        with ZipFile(out, 'w') as zipf:
-            zipf.writestr('manifest.webapp', self.manifest().encode('utf8'))
-            zipf.writestr('refract.html', self.refract_html().encode('utf8'))
+        data = [crxmake.MAGIC, crxmake.VERSION, der_len, sig_len, der, sig, zip_data]
+        for d in data:
+            out.write(d)
 
-            icon_bytes = io.BytesIO()
-            self.icon().save(icon_bytes, 'PNG')
-            zipf.writestr('icon_512.png', icon_bytes.getvalue())
-            icon_bytes.close()
-
-        out.seek(0)
-        contents = out.read()
+        crx = out.getvalue()
         out.close()
-        return contents
+
+        return crx
 
 
 def resize_square(image, size):
@@ -207,8 +268,31 @@ def resize_square(image, size):
 
 
 def download_image(image_url):
+    # Dumb workaround for protocol-relative URLs.
+    if image_url.startswith('//'):
+        image_url = 'http:' + image_url
+
     response = requests.get(image_url)
     if response.status_code != 200:
         return None
 
     return Image.open(StringIO(response.content))
+
+
+def build_zipfile(files):
+    """
+    Generate a string containing the data for a zipfile containing the
+    given files.
+
+    :param dict files: Dictionary of files to zip. Keys are filenames,
+                       values are file contents.
+    """
+    out = StringIO()
+    with ZipFile(out, 'w') as zipf:
+        for filename, file_contents in files.items():
+            zipf.writestr(filename, file_contents)
+
+    zip_contents = out.getvalue()
+    out.close()
+
+    return zip_contents

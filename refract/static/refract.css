@@ -14,3 +14,7 @@
     display: none;
     margin-top: 40px;
 }
+
+#chrome-install-instructions {
+    display: none;
+}

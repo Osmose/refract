@@ -1,7 +1,25 @@
 ;(function($) {
-    $('#install-form').on('submit', function(e) {
+    $('#open-web-app-install').on('click', function(e) {
         e.preventDefault();
+        installOpenWebApp();
+    });
 
+    $('#chrome-app-install').on('click', function(e) {
+        e.preventDefault();
+        installChromeApp();
+    });
+
+    function installChromeApp() {
+        var crxUrl = location.origin + '/chrome_app.crx?' + $.param({
+            url: $('#app-url').val(),
+            name: $('#app-name').val(),
+            icon_url: $('#app-icon-url').val(),
+        });
+        $('#chrome-install-instructions').slideDown(300);
+        window.location = crxUrl;
+    }
+
+    function installOpenWebApp() {
         var manifestUrl = location.origin + '/manifest.webapp?' + $.param({
             url: $('#app-url').val(),
             name: $('#app-name').val(),
@@ -13,7 +31,7 @@
             console.log('Install failed, error: ' + this.error.name);
             console.log(manifestUrl);
         };
-    });
+    }
 
     $('#toggle-extras button').on('click', function() {
         $('#toggle-extras').slideUp(150, function() {
