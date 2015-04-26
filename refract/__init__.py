@@ -1,8 +1,11 @@
 import hashlib
 import io
 import json
+import logging
+from logging.handlers import SMTPHandler
 import os
 from StringIO import StringIO
+from textwrap import dedent
 from zipfile import ZipFile
 
 import requests
@@ -18,7 +21,28 @@ app.config.from_object('refract.default_settings')
 app.config.from_envvar('REFRACT_SETTINGS', silent=True)
 
 
+# Log errors to email in production mode.
+if not app.debug:
+    mail_handler = SMTPHandler('127.0.0.1', app.config['EMAIL_FROM'], app.config['ADMINS'],
+                               'Refract Error')
+    mail_handler.setLevel(logging.ERROR)
+    mail_handler.setFormatter(logging.Formatter(dedent('''
+        Message type:       %(levelname)s
+        Location:           %(pathname)s:%(lineno)d
+        Module:             %(module)s
+        Function:           %(funcName)s
+        Time:               %(asctime)s
+
+        Message:
+
+        %(message)s
+    ''')))
+    app.logger.addHandler(mail_handler)
+
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
 def path(*parts):
     return os.path.join(ROOT, *parts)
 
@@ -32,7 +56,7 @@ def index():
 def manifest():
     url = request.args.get('url')
     name = request.args.get('name')
-    icon_url = request.args.get('icon_url');
+    icon_url = request.args.get('icon_url')
     webapp = Webapp(url, name=name, icon_url=icon_url)
     return webapp.mini_manifest(), 200, {'Content-Type': 'application/x-web-app-manifest+json'}
 
