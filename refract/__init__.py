@@ -149,16 +149,16 @@ class WebApp(object):
     def fetch_name(self):
         """Fetch an appropriate name for this app."""
         soup = self.soup()
+        if soup:
+            # Prefer Open Graph Names first.
+            for tag in soup.findAll('meta'):
+                if tag.get('property') == 'og:site_name':
+                    return tag['content']
 
-        # Prefer Open Graph Names first.
-        for tag in soup.findAll('meta'):
-            if tag.get('property') == 'og:site_name':
-                return tag['content']
-
-        # Fallback to the title tag.
-        title_tag = soup.find('title')
-        if title_tag:
-            return unicode(title_tag.string)
+            # Fallback to the title tag.
+            title_tag = soup.find('title')
+            if title_tag:
+                return unicode(title_tag.string)
 
         # Nothing? Jeez.
         return 'Refracted Web App'
