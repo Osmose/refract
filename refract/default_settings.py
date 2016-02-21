@@ -1,9 +1,7 @@
-GA_TRACKING_ID = ''
+import os
 
-ADMINS = ['admin@example.com']
-EMAIL_FROM = 'refract@example.com'
 
-# Uncomment and specify the paths to the keys used for generating
-# Chrome CRX files.
-#PRIVATE_KEY = '/path/to/private.pem'
-#PUBLIC_KEY = '/path/to/public.der'  # Must be in DER format.
+GA_TRACKING_ID = os.environ.get('REFRACT_GA_TRACKING_ID', '')
+
+# Keys used for generating Chrome CRX files.
+PRIVATE_KEY = os.environ.get('REFRACT_PRIVATE_KEY', '')  # .pem

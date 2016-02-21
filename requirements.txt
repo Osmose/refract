@@ -1,7 +1,7 @@
-# Pin requirements? AIN'T NOBODY GOT TIME FOR THAT
-Flask
-Flask-Script
-requests
-BeautifulSoup4
-Pillow
-crxmake
+Flask==0.10.1
+Flask-Script==2.0.5
+requests==2.5.1
+beautifulsoup4==4.3.2
+Pillow==2.7.0
+gunicorn==19.4.5
+cryptography==1.2.2

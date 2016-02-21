@@ -4,14 +4,15 @@ import json
 import logging
 import struct
 import os
-from logging.handlers import SMTPHandler
 from StringIO import StringIO
 from textwrap import dedent
 from zipfile import ZipFile
 
 import requests
 from bs4 import BeautifulSoup
-from crxmake import crxmake
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
 from PIL import Image
 from requests.exceptions import RequestException
 
@@ -23,25 +24,7 @@ app = Flask(__name__)
 app.config.from_object('refract.default_settings')
 app.config.from_pyfile('settings.py', silent=True)
 app.config.from_envvar('REFRACT_SETTINGS', silent=True)
-
-
-# Log errors to email in production mode.
-if not app.debug:
-    mail_handler = SMTPHandler('127.0.0.1', app.config['EMAIL_FROM'], app.config['ADMINS'],
-                               'Refract Error')
-    mail_handler.setLevel(logging.ERROR)
-    mail_handler.setFormatter(logging.Formatter(dedent('''
-        Message type:       %(levelname)s
-        Location:           %(pathname)s:%(lineno)d
-        Module:             %(module)s
-        Function:           %(funcName)s
-        Time:               %(asctime)s
-
-        Message:
-
-        %(message)s
-    ''')))
-    app.logger.addHandler(mail_handler)
+app.logger.addHandler(logging.StreamHandler())
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -239,17 +222,32 @@ class ChromeApp(WebApp):
 
         # Adapted from crxmake, which normally only works on files on
         # the filesystem.
-        with open(app.config['PRIVATE_KEY']) as f:
-            pem = f.read()
-        with open(app.config['PUBLIC_KEY']) as f:
-            der = f.read()
+        with open(app.config['PRIVATE_KEY'], 'rb') as f:
+            private_key = serialization.load_pem_private_key(
+                f.read(),
+                password=None,
+                backend=default_backend()
+            )
 
-        sig = crxmake.sign(zip_data, pem)
+        signer = private_key.signer(
+            padding.PKCS1v15(),
+            hashes.SHA1()
+        )
+        signer.update(zip_data)
+        sig = signer.finalize()
+
+        der = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
         der_len = struct.pack("<I", len(der))
         sig_len = struct.pack("<I", len(sig))
 
         out = StringIO()
-        data = [crxmake.MAGIC, crxmake.VERSION, der_len, sig_len, der, sig, zip_data]
+        MAGIC = "Cr24"
+        VERSION = struct.pack("<I", 2)
+        data = [MAGIC, VERSION, der_len, sig_len, der, sig, zip_data]
         for d in data:
             out.write(d)
 
